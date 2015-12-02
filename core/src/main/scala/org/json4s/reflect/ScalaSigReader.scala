@@ -122,6 +122,12 @@ object ScalaSigReader {
       val ii = (typeArgIndexes.length - 1) min curr
       t match {
         case TypeRefType(ThisType(_), symbol, _) if isPrimitive(symbol) => symbol
+        case TypeRefType(ThisType(_), symbol: AliasSymbol, Nil) => findPrimitive(symbol.infoType, curr)
+        case TypeRefType(SingleType(_, _), symbol: ExternalSymbol, Nil) =>
+          resolveExternalAlias(symbol) match {
+            case Some(alias) => findPrimitive(alias.infoType, curr)
+            case None => symbol
+          }
         case TypeRefType(_, symbol, Nil) => symbol
         case TypeRefType(_, _, args) if typeArgIndexes(ii) >= args.length =>
           findPrimitive(args(0 max args.length - 1), curr + 1)
@@ -144,10 +150,21 @@ object ScalaSigReader {
 
     @tailrec def findPrimitive(t: Type): Symbol = t match {
       case TypeRefType(ThisType(_), symbol, _) => symbol
+      case TypeRefType(_, symbol: ExternalSymbol, _) =>
+        resolveExternalAlias(symbol).getOrElse(fail("Can't resolve external symbol for type info " + t))
       case ref @ TypeRefType(_, _, _) => findPrimitive(ref)
       case x => fail("Unexpected type info " + x)
     }
     toClass(findPrimitive(t))
+  }
+
+  def resolveExternalAlias(s: ExternalSymbol): Option[AliasSymbol] = {
+    for {
+      parent <- s.parent
+      parentClass <- resolveClass[AnyRef](parent.path)
+      ss <- findScalaSig(parentClass)
+      s <- ss.symbols.collectFirst { case a: AliasSymbol if a.name == s.name => a }
+    } yield s
   }
 
   private def toClass(s: Symbol) = s.path match {

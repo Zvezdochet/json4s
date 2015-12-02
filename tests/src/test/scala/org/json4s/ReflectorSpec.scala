@@ -59,6 +59,17 @@ class NormalClass {
   val optPrimitive: Option[Int] = Some(3)
 }
 
+object AliasObject {
+  type TypeAlias = Long
+
+  case class RROptionWithAlias(aliased: Option[TypeAlias])
+  case class RROptionWithAlias2(aliased: Option[OtherAliasObject.TypeAlias2], any: Option[AnyRef])
+}
+
+object OtherAliasObject {
+  type TypeAlias2 = Int
+}
+
 class ReflectorSpec extends Specification {
 
   implicit val formats: Formats = DefaultFormats.withCompanions(classOf[PathTypes.HasTrait.FromTrait] -> PathTypes.HasTrait)
@@ -307,6 +318,22 @@ class ReflectorSpec extends Specification {
       params(2).returnType must_== Reflector.scalaTypeOf[Int]
       params(3).name must_== "optPrimitive"
       params(3).returnType must_== Reflector.scalaTypeOf[Option[Int]]
+    }
+
+    "describe a case class with option parametrized with type alias" in {
+      val desc = Reflector.describe[AliasObject.RROptionWithAlias].asInstanceOf[ClassDescriptor]
+      desc.constructors.size must_== 1
+      val params = desc.constructors.head.params
+      params(0).name must_== "aliased"
+      params(0).argType must_== Reflector.scalaTypeOf[Option[Long]]
+    }
+
+    "describe a case class with option parametrized with type alias from another object" in {
+      val desc = Reflector.describe[AliasObject.RROptionWithAlias2].asInstanceOf[ClassDescriptor]
+      desc.constructors.size must_== 1
+      val params = desc.constructors.head.params
+      params(0).name must_== "aliased"
+      params(0).argType must_== Reflector.scalaTypeOf[Option[Int]]
     }
   }
 }
